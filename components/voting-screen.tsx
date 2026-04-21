@@ -178,7 +178,7 @@ export function VotingScreen() {
         </h1>
 
         {/* Cards container */}
-        <div className="relative flex w-full max-w-4xl flex-col items-center gap-6 md:flex-row md:items-stretch md:gap-8">
+        <div className="relative flex w-full max-w-4xl flex-col items-center md:flex-row md:items-stretch md:gap-8">
           {/* Option A */}
           <div className="flex w-full md:flex-1">
             <OptionCard
@@ -188,8 +188,8 @@ export function VotingScreen() {
             />
           </div>
 
-          {/* OR Badge - positioned between cards */}
-          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 md:static md:translate-x-0 md:translate-y-0 md:self-start md:mt-[132px]">
+          {/* OR Badge - sits in the seam between stacked cards on mobile, between side-by-side cards on desktop */}
+          <div className="z-10 -my-7 flex shrink-0 items-center justify-center md:my-0 md:self-start md:mt-[132px]">
             <OrBadge />
           </div>
 
