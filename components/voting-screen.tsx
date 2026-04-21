@@ -31,10 +31,9 @@ interface OptionCardProps {
   name: string
   description: string
   onSelect: () => void
-  position: "top" | "bottom" | "left" | "right"
 }
 
-function OptionCard({ name, description, onSelect, position }: OptionCardProps) {
+function OptionCard({ name, description, onSelect }: OptionCardProps) {
   const [showDescription, setShowDescription] = useState(false)
 
   return (
@@ -45,12 +44,28 @@ function OptionCard({ name, description, onSelect, position }: OptionCardProps) 
         "hover:border-primary/40 hover:shadow-md hover:shadow-primary/5",
         "active:scale-[0.98] active:shadow-sm",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2",
-        "md:min-h-[220px]"
+        "md:min-h-[280px]"
       )}
     >
-      <span className="text-xl font-medium leading-tight text-card-foreground md:text-2xl text-balance">
-        {name}
-      </span>
+      <div className="flex flex-1 flex-col items-center justify-center">
+        <span className="text-xl font-medium leading-tight text-card-foreground md:text-2xl text-balance">
+          {name}
+        </span>
+        
+        {/* Inline description with smooth expansion */}
+        <div
+          className={cn(
+            "grid transition-all duration-300 ease-out",
+            showDescription ? "mt-4 grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
+          )}
+        >
+          <div className="overflow-hidden">
+            <p className="max-w-xs text-sm leading-relaxed text-muted-foreground">
+              {description}
+            </p>
+          </div>
+        </div>
+      </div>
       
       {/* Description toggle */}
       <span
@@ -70,20 +85,6 @@ function OptionCard({ name, description, onSelect, position }: OptionCardProps) 
       >
         {showDescription ? "Hide description" : "See description"}
       </span>
-
-      {/* Description popover */}
-      {showDescription && (
-        <div 
-          className={cn(
-            "absolute z-10 w-64 rounded-md border bg-popover p-3 text-left text-sm text-popover-foreground shadow-lg",
-            position === "top" || position === "left" ? "bottom-full mb-2" : "top-full mt-2",
-            "left-1/2 -translate-x-1/2"
-          )}
-          onClick={(e) => e.stopPropagation()}
-        >
-          {description}
-        </div>
-      )}
     </button>
   )
 }
@@ -92,13 +93,15 @@ function ProgressBar({ current, total }: { current: number; total: number }) {
   const percentage = Math.round((current / total) * 100)
   
   return (
-    <div className="relative h-2 w-full overflow-hidden rounded-full bg-muted">
-      <div
-        className="h-full bg-primary transition-all duration-500 ease-out"
-        style={{ width: `${percentage}%` }}
-      />
-      <span className="absolute inset-0 flex items-center justify-center text-[10px] font-medium text-foreground/70">
-        {percentage}%
+    <div className="flex flex-col items-center gap-2">
+      <div className="relative h-2 w-full max-w-md overflow-hidden rounded-full bg-muted">
+        <div
+          className="h-full bg-primary transition-all duration-500 ease-out"
+          style={{ width: `${percentage}%` }}
+        />
+      </div>
+      <span className="text-xs font-medium text-muted-foreground">
+        {percentage}% complete
       </span>
     </div>
   )
@@ -112,7 +115,7 @@ function OrBadge() {
   )
 }
 
-function CompletionScreen() {
+function CompletionScreen({ onReset }: { onReset: () => void }) {
   return (
     <div className="flex min-h-screen flex-col items-center justify-center px-6">
       <div className="text-center">
@@ -122,6 +125,12 @@ function CompletionScreen() {
         <p className="mt-4 text-lg text-muted-foreground">
           Results dashboard coming next.
         </p>
+        <button
+          onClick={onReset}
+          className="mt-8 rounded-lg bg-primary px-6 py-3 text-sm font-medium text-primary-foreground shadow-sm transition-all hover:bg-primary/90 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 active:scale-[0.98]"
+        >
+          Start over
+        </button>
       </div>
     </div>
   )
@@ -143,8 +152,13 @@ export function VotingScreen() {
     setCurrentPairIndex((prev) => prev + 1)
   }, [])
 
+  const handleReset = useCallback(() => {
+    setCurrentPairIndex(0)
+    setVotes(new Map())
+  }, [])
+
   if (isComplete) {
-    return <CompletionScreen />
+    return <CompletionScreen onReset={handleReset} />
   }
 
   const [optionA, optionB] = currentPair
@@ -152,7 +166,7 @@ export function VotingScreen() {
   return (
     <div className="flex min-h-screen flex-col bg-background">
       {/* Progress bar */}
-      <div className="sticky top-0 z-20 bg-background/95 px-4 py-3 backdrop-blur-sm">
+      <div className="sticky top-0 z-20 bg-background/95 px-6 pb-4 pt-6 backdrop-blur-sm">
         <ProgressBar current={currentPairIndex} total={ALL_PAIRS.length} />
       </div>
 
@@ -171,7 +185,6 @@ export function VotingScreen() {
               name={optionA.name}
               description={optionA.description}
               onSelect={() => handleVote(optionA.id)}
-              position="top"
             />
           </div>
 
@@ -186,7 +199,6 @@ export function VotingScreen() {
               name={optionB.name}
               description={optionB.description}
               onSelect={() => handleVote(optionB.id)}
-              position="bottom"
             />
           </div>
         </div>
