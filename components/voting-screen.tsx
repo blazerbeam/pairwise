@@ -122,7 +122,7 @@ function CompletionScreen({ onReset }: { onReset: () => void }) {
         <h1 className="text-3xl font-semibold text-foreground md:text-4xl">
           Thanks, you&apos;re done!
         </h1>
-        <p className="mt-4 text-lg text-muted-foreground">
+        <p className="mt-4 text-lg text-muted-foreground underline">
           Results dashboard coming next.
         </p>
         <button
