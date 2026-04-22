@@ -1,3 +1,5 @@
+import { Card, CardContent } from "@/components/ui/card"
+
 export function HowItWorks() {
   const steps = [
     {
@@ -27,24 +29,26 @@ export function HowItWorks() {
   ]
 
   return (
-    <section className="px-6 py-20 md:px-12">
+    <section className="bg-muted/30 px-6 py-20 md:px-12">
       <div className="mx-auto max-w-4xl">
         <h2 className="text-center text-2xl font-semibold text-foreground md:text-3xl">
           How it works
         </h2>
-        <div className="mt-12 grid gap-8 md:grid-cols-2">
+        <div className="mt-12 grid gap-6 md:grid-cols-2">
           {steps.map((step) => (
-            <div key={step.number} className="flex gap-4">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-medium text-primary-foreground">
-                {step.number}
-              </div>
-              <div>
-                <h3 className="font-medium text-foreground">{step.title}</h3>
-                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                  {step.description}
-                </p>
-              </div>
-            </div>
+            <Card key={step.number} className="bg-background shadow-none">
+              <CardContent className="flex gap-4 pt-6">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary text-base font-semibold text-primary-foreground">
+                  {step.number}
+                </div>
+                <div>
+                  <h3 className="font-medium text-foreground">{step.title}</h3>
+                  <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                    {step.description}
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
           ))}
         </div>
       </div>
