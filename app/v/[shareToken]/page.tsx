@@ -45,7 +45,7 @@ export default async function VotePage({ params }: PageProps) {
     // Voter exists and belongs to this pairwise - fetch their progress and questions
     voterProgress = await getVoterProgress(voter.id)
     
-    const { data: audienceQuestions } = await supabase
+    const { data: audienceQuestions, error: questionsError } = await supabase
       .from("questions")
       .select("id, text, axis_label, position")
       .eq("pairwise_id", pairwise.id)
@@ -53,6 +53,14 @@ export default async function VotePage({ params }: PageProps) {
       .order("position")
 
     questions = audienceQuestions || []
+    
+    console.log("[v0] Server: Fetched questions for voter", {
+      voterId: voter.id,
+      audienceId: voter.audience_id,
+      questionsCount: questions.length,
+      questionsError,
+      questions: questions.map(q => ({ id: q.id, text: q.text })),
+    })
   }
 
   return (

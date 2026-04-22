@@ -10,16 +10,20 @@ export async function getVoterSession() {
   const cookieStore = await cookies()
   const sessionToken = cookieStore.get(VOTER_COOKIE_NAME)?.value
   
+  console.log("[v0] getVoterSession: sessionToken exists?", !!sessionToken)
+  
   if (!sessionToken) {
     return null
   }
 
   const supabase = await createClient()
-  const { data: voter } = await supabase
+  const { data: voter, error } = await supabase
     .from("voters")
     .select("id, pairwise_id, audience_id, display_name, email")
     .eq("session_token", sessionToken)
     .single()
+
+  console.log("[v0] getVoterSession: found voter?", !!voter, "error?", error?.message, "audienceId:", voter?.audience_id)
 
   return voter
 }
@@ -43,6 +47,16 @@ export async function createVoter(pairwiseId: string, audienceId: string) {
     throw new Error("Failed to create voter session")
   }
 
+  // Fetch questions for this audience
+  const { data: questions } = await supabase
+    .from("questions")
+    .select("id, text, axis_label, position")
+    .eq("pairwise_id", pairwiseId)
+    .eq("audience_id", audienceId)
+    .order("position")
+
+  console.log("[v0] createVoter: fetched questions for audience", audienceId, "count:", questions?.length)
+
   // Set httpOnly cookie
   const cookieStore = await cookies()
   cookieStore.set(VOTER_COOKIE_NAME, sessionToken, {
@@ -53,7 +67,10 @@ export async function createVoter(pairwiseId: string, audienceId: string) {
     path: "/",
   })
 
-  return voter
+  return { 
+    voter, 
+    questions: questions || [] 
+  }
 }
 
 export async function submitVote(

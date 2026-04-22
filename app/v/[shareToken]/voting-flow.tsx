@@ -92,11 +92,34 @@ export function VotingFlow({
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
 
-  // State
+  // State - sync with props when they change (after router.refresh())
   const [voter, setVoter] = useState<Voter | null>(existingVoter)
   const [questions, setQuestions] = useState<Question[]>(existingQuestions)
   const [votes, setVotes] = useState<Vote[]>(existingProgress)
   const [selectedAudience, setSelectedAudience] = useState<string | null>(null)
+  const [isCreatingVoter, setIsCreatingVoter] = useState(false)
+
+  // Sync state with props when they change (e.g., after router.refresh())
+  // Always sync voter - if null from server, set null; if exists, set it
+  useEffect(() => {
+    console.log("[v0] useEffect: existingVoter changed", existingVoter?.id)
+    setVoter(existingVoter)
+    if (existingVoter) {
+      setIsCreatingVoter(false) // Voter loaded from server, stop loading
+    }
+  }, [existingVoter])
+
+  // Always sync questions from props
+  useEffect(() => {
+    console.log("[v0] useEffect: existingQuestions changed, length:", existingQuestions.length)
+    setQuestions(existingQuestions)
+  }, [existingQuestions])
+
+  // Always sync votes from props
+  useEffect(() => {
+    console.log("[v0] useEffect: existingProgress changed, length:", existingProgress.length)
+    setVotes(existingProgress)
+  }, [existingProgress])
 
   // Generate all pairs from items
   const [allPairs] = useState(() => generatePairs(items))
@@ -118,6 +141,18 @@ export function VotingFlow({
   const votesCompleted = votes.length
   const progress = totalVotesNeeded > 0 ? Math.round((votesCompleted / totalVotesNeeded) * 100) : 0
 
+  // Debug logging
+  console.log("[v0] VotingFlow state:", {
+    hasVoter: !!voter,
+    voterId: voter?.id,
+    questionsCount: questions.length,
+    questionsFromProps: existingQuestions.length,
+    itemsCount: items.length,
+    pairsCount: allPairs.length,
+    votesCount: votes.length,
+    currentPosition: currentPosition ? { questionId: currentPosition.question.id } : null,
+  })
+
   // Handle audience selection and voter creation
   const handleAudienceSelect = (audienceId: string) => {
     setSelectedAudience(audienceId)
@@ -126,14 +161,22 @@ export function VotingFlow({
   const handleStartVoting = () => {
     if (!selectedAudience) return
 
+    setIsCreatingVoter(true)
     startTransition(async () => {
       try {
-        const newVoter = await createVoter(pairwise.id, selectedAudience)
-        setVoter(newVoter)
-        // Refresh to get questions for this audience
-        router.refresh()
+        const result = await createVoter(pairwise.id, selectedAudience)
+        // Set voter and questions directly from server action response
+        // This avoids timing issues with cookie/refresh
+        console.log("[v0] handleStartVoting: got result", { 
+          voterId: result.voter.id, 
+          questionsCount: result.questions.length 
+        })
+        setVoter(result.voter)
+        setQuestions(result.questions)
+        setIsCreatingVoter(false)
       } catch (error) {
         console.error("Failed to start voting:", error)
+        setIsCreatingVoter(false)
       }
     })
   }
@@ -157,8 +200,8 @@ export function VotingFlow({
     })
   }
 
-  // Show audience picker if no voter yet
-  if (!voter) {
+  // Show audience picker if no voter yet (or still creating)
+  if (!voter || isCreatingVoter) {
     return (
       <AudiencePicker
         pairwiseName={pairwise.name}
@@ -166,8 +209,32 @@ export function VotingFlow({
         selectedAudience={selectedAudience}
         onSelect={handleAudienceSelect}
         onStart={handleStartVoting}
-        isPending={isPending}
+        isPending={isPending || isCreatingVoter}
       />
+    )
+  }
+
+  // Show error state if no items exist
+  if (items.length === 0) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center px-6">
+        <div className="text-center">
+          <h2 className="text-xl font-semibold text-foreground">No items to compare</h2>
+          <p className="mt-2 text-muted-foreground">This pairwise has no items configured yet.</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Show error state if no questions exist for this audience
+  if (questions.length === 0) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center px-6">
+        <div className="text-center">
+          <h2 className="text-xl font-semibold text-foreground">No questions found</h2>
+          <p className="mt-2 text-muted-foreground">No questions are configured for your team.</p>
+        </div>
+      </div>
     )
   }
 
