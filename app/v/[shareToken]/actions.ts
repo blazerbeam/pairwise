@@ -10,16 +10,20 @@ export async function getVoterSession() {
   const cookieStore = await cookies()
   const sessionToken = cookieStore.get(VOTER_COOKIE_NAME)?.value
   
+  console.log("[v0] getVoterSession: sessionToken exists?", !!sessionToken)
+  
   if (!sessionToken) {
     return null
   }
 
   const supabase = await createClient()
-  const { data: voter } = await supabase
+  const { data: voter, error } = await supabase
     .from("voters")
     .select("id, pairwise_id, audience_id, display_name, email")
     .eq("session_token", sessionToken)
     .single()
+
+  console.log("[v0] getVoterSession: found voter?", !!voter, "error?", error?.message, "audienceId:", voter?.audience_id)
 
   return voter
 }
