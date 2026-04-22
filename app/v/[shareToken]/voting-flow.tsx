@@ -176,12 +176,9 @@ export function VotingFlow({
         
         // Check if this was the last vote
         const totalVotesNeeded = questions.length * allPairs.length
-        console.log("[v0] handleVote: newVotes.length =", newVotes.length, "totalVotesNeeded =", totalVotesNeeded)
         if (newVotes.length >= totalVotesNeeded) {
           // Mark voter as completed
-          console.log("[v0] handleVote: marking voter completed, voterId =", voter.id)
           await markVoterCompleted(voter.id)
-          console.log("[v0] handleVote: markVoterCompleted finished")
         }
       } catch (error) {
         console.error("Failed to submit vote:", error)
