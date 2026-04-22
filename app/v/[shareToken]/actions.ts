@@ -104,12 +104,16 @@ export async function getVoterProgress(voterId: string) {
 }
 
 export async function markVoterCompleted(voterId: string) {
+  console.log("[v0] markVoterCompleted: starting, voterId =", voterId)
   const supabase = await createClient()
   
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("voters")
     .update({ completed_at: new Date().toISOString() })
     .eq("id", voterId)
+    .select()
+
+  console.log("[v0] markVoterCompleted: result =", { data, error: error?.message })
 
   if (error) {
     console.error("Failed to mark voter completed:", error)
