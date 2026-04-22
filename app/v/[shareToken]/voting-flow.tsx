@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useTransition, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { createVoter, submitVote } from "./actions"
+import { createVoter, submitVote, markVoterCompleted, clearVoterSession } from "./actions"
 import { cn } from "@/lib/utils"
 
 interface Pairwise {
@@ -100,24 +100,18 @@ export function VotingFlow({
   const [isCreatingVoter, setIsCreatingVoter] = useState(false)
 
   // Sync state with props when they change (e.g., after router.refresh())
-  // Always sync voter - if null from server, set null; if exists, set it
   useEffect(() => {
-    console.log("[v0] useEffect: existingVoter changed", existingVoter?.id)
     setVoter(existingVoter)
     if (existingVoter) {
-      setIsCreatingVoter(false) // Voter loaded from server, stop loading
+      setIsCreatingVoter(false)
     }
   }, [existingVoter])
 
-  // Always sync questions from props
   useEffect(() => {
-    console.log("[v0] useEffect: existingQuestions changed, length:", existingQuestions.length)
     setQuestions(existingQuestions)
   }, [existingQuestions])
 
-  // Always sync votes from props
   useEffect(() => {
-    console.log("[v0] useEffect: existingProgress changed, length:", existingProgress.length)
     setVotes(existingProgress)
   }, [existingProgress])
 
@@ -141,17 +135,7 @@ export function VotingFlow({
   const votesCompleted = votes.length
   const progress = totalVotesNeeded > 0 ? Math.round((votesCompleted / totalVotesNeeded) * 100) : 0
 
-  // Debug logging
-  console.log("[v0] VotingFlow state:", {
-    hasVoter: !!voter,
-    voterId: voter?.id,
-    questionsCount: questions.length,
-    questionsFromProps: existingQuestions.length,
-    itemsCount: items.length,
-    pairsCount: allPairs.length,
-    votesCount: votes.length,
-    currentPosition: currentPosition ? { questionId: currentPosition.question.id } : null,
-  })
+
 
   // Handle audience selection and voter creation
   const handleAudienceSelect = (audienceId: string) => {
@@ -165,12 +149,6 @@ export function VotingFlow({
     startTransition(async () => {
       try {
         const result = await createVoter(pairwise.id, selectedAudience)
-        // Set voter and questions directly from server action response
-        // This avoids timing issues with cookie/refresh
-        console.log("[v0] handleStartVoting: got result", { 
-          voterId: result.voter.id, 
-          questionsCount: result.questions.length 
-        })
         setVoter(result.voter)
         setQuestions(result.questions)
         setIsCreatingVoter(false)
@@ -190,15 +168,29 @@ export function VotingFlow({
     startTransition(async () => {
       try {
         await submitVote(voter.id, question.id, pair.itemA.id, pair.itemB.id, winnerId)
-        setVotes((prev) => [
-          ...prev,
+        const newVotes = [
+          ...votes,
           { question_id: question.id, item_a_id: pair.itemA.id, item_b_id: pair.itemB.id },
-        ])
+        ]
+        setVotes(newVotes)
+        
+        // Check if this was the last vote
+        const totalVotesNeeded = questions.length * allPairs.length
+        if (newVotes.length >= totalVotesNeeded) {
+          // Mark voter as completed
+          await markVoterCompleted(voter.id)
+        }
       } catch (error) {
         console.error("Failed to submit vote:", error)
       }
     })
   }
+
+  // Handle session reset
+  const handleReset = useCallback(async () => {
+    await clearVoterSession()
+    router.refresh()
+  }, [router])
 
   // Show audience picker if no voter yet (or still creating)
   if (!voter || isCreatingVoter) {
@@ -240,7 +232,13 @@ export function VotingFlow({
 
   // Show completion screen if all votes are in
   if (!currentPosition) {
-    return <CompletionScreen pairwiseName={pairwise.name} />
+    return (
+      <CompletionScreen 
+        pairwiseName={pairwise.name} 
+        shareToken={pairwise.share_token}
+        onReset={handleReset}
+      />
+    )
   }
 
   // Show voting interface
@@ -483,7 +481,15 @@ function OrBadge() {
 }
 
 // Completion Screen Component
-function CompletionScreen({ pairwiseName }: { pairwiseName: string }) {
+function CompletionScreen({ 
+  pairwiseName, 
+  shareToken,
+  onReset,
+}: { 
+  pairwiseName: string
+  shareToken: string
+  onReset: () => void
+}) {
   return (
     <div className="flex min-h-screen flex-col items-center justify-center px-6">
       <div className="text-center">
@@ -493,9 +499,22 @@ function CompletionScreen({ pairwiseName }: { pairwiseName: string }) {
         <p className="mt-4 text-lg text-muted-foreground">
           Your votes for <span className="font-medium text-foreground">{pairwiseName}</span> have been recorded.
         </p>
-        <p className="mt-2 text-lg text-muted-foreground underline">
-          Results dashboard coming next.
-        </p>
+        
+        <a
+          href={`/v/${shareToken}/results`}
+          className="mt-8 inline-block rounded-lg bg-primary px-6 py-3 text-sm font-medium text-primary-foreground shadow-sm transition-all hover:bg-primary/90 hover:shadow-md"
+        >
+          See results →
+        </a>
+        
+        <div className="mt-8">
+          <button
+            onClick={onReset}
+            className="text-sm text-muted-foreground hover:text-foreground transition-colors underline"
+          >
+            Reset my session
+          </button>
+        </div>
       </div>
     </div>
   )
