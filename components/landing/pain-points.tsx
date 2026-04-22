@@ -24,15 +24,15 @@ export function PainPoints() {
           {pains.map((pain, index) => (
             <div
               key={index}
-              className="rounded-xl bg-stone-50 p-8 shadow-sm"
+              className="rounded-xl bg-stone-50 p-6 shadow-sm"
             >
               {/* Orange accent bar */}
-              <div className="mb-6 h-1 w-12 rounded-full bg-primary" />
+              <div className="mb-4 h-1 w-10 rounded-full bg-primary" />
               
-              <h3 className="text-xl font-bold leading-tight text-foreground">
+              <h3 className="text-lg font-bold leading-tight text-foreground">
                 {pain.headline}
               </h3>
-              <p className="mt-3 leading-relaxed text-gray-600">
+              <p className="mt-2 text-sm leading-snug text-gray-600">
                 {pain.body}
               </p>
             </div>
