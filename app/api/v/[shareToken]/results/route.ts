@@ -141,6 +141,7 @@ export async function GET(
       .eq("question_id", question.id)
       .order("created_at", { ascending: true })
     
+    const voteCount = votes?.length || 0
     const eloScores = computeEloScores(itemIds, votes || [])
     
     const rankedItems = items
@@ -149,8 +150,14 @@ export async function GET(
         name: item.name,
         description: item.description,
         elo: Math.round(eloScores[item.id] || 1000),
+        rank: 0, // Will be set after sorting
       }))
       .sort((a, b) => b.elo - a.elo)
+    
+    // Set ranks after sorting
+    rankedItems.forEach((item, index) => {
+      item.rank = index + 1
+    })
     
     questionResults.push({
       questionId: question.id,
@@ -160,6 +167,8 @@ export async function GET(
       audiencePosition: (question.audiences as { position: number })?.position || 0,
       position: question.position,
       rankedItems,
+      voteCount,
+      totalItems: items.length,
     })
   }
   
