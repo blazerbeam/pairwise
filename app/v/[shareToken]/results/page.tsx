@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useCallback } from "react"
 import { useParams } from "next/navigation"
 import Link from "next/link"
 import {
@@ -12,7 +12,7 @@ import {
   ResponsiveContainer,
   ReferenceLine,
   Cell,
-  LabelList,
+  Tooltip,
 } from "recharts"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 
@@ -21,6 +21,7 @@ interface RankedItem {
   name: string
   description: string | null
   elo: number
+  rank: number
 }
 
 interface QuestionResult {
@@ -29,6 +30,8 @@ interface QuestionResult {
   axisLabel: string | null
   audienceName: string
   rankedItems: RankedItem[]
+  voteCount: number
+  totalItems: number
 }
 
 interface ResultsData {
@@ -103,7 +106,10 @@ export default function ResultsPage() {
     )
   }
 
-  const showScatter = data.questions.length === 2
+  // Check if scatter should be shown (exactly 2 questions and both have votes)
+  const canShowScatter = data.questions.length === 2 && 
+    data.questions[0].voteCount > 0 && 
+    data.questions[1].voteCount > 0
 
   return (
     <div className="min-h-screen bg-background">
@@ -119,8 +125,8 @@ export default function ResultsPage() {
           </p>
         </header>
 
-        {/* 2D Scatter Chart (only when exactly 2 questions) */}
-        {showScatter && (
+        {/* 2D Scatter Chart (only when exactly 2 questions with votes) */}
+        {data.questions.length === 2 && (
           <section className="mb-12">
             <Card>
               <CardHeader>
@@ -130,7 +136,15 @@ export default function ResultsPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <ScatterPlot questions={data.questions} items={data.items} />
+                {canShowScatter ? (
+                  <ScatterPlot questions={data.questions} items={data.items} />
+                ) : (
+                  <div className="flex h-[200px] items-center justify-center">
+                    <p className="text-muted-foreground">
+                      Scatter view available once both questions have votes.
+                    </p>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </section>
@@ -141,7 +155,11 @@ export default function ResultsPage() {
           <h2 className="mb-6 text-xl font-semibold text-foreground">Rankings by Question</h2>
           <div className="space-y-6">
             {data.questions.map((question) => (
-              <QuestionRankingCard key={question.questionId} question={question} />
+              <QuestionRankingCard 
+                key={question.questionId} 
+                question={question} 
+                shareToken={shareToken}
+              />
             ))}
           </div>
 
@@ -166,7 +184,49 @@ export default function ResultsPage() {
   )
 }
 
-function QuestionRankingCard({ question }: { question: QuestionResult }) {
+function QuestionRankingCard({ 
+  question, 
+  shareToken 
+}: { 
+  question: QuestionResult
+  shareToken: string 
+}) {
+  const [copied, setCopied] = useState(false)
+
+  const handleCopyLink = useCallback(async () => {
+    const votingUrl = `${window.location.origin}/v/${shareToken}`
+    try {
+      await navigator.clipboard.writeText(votingUrl)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch (error) {
+      console.error("Failed to copy:", error)
+    }
+  }, [shareToken])
+
+  // Empty state - no votes yet
+  if (question.voteCount === 0) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">{question.questionText}</CardTitle>
+          <CardDescription>Asked of: {question.audienceName}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col items-center justify-center py-8 text-center">
+            <p className="text-muted-foreground">No votes yet for this question</p>
+            <button
+              onClick={handleCopyLink}
+              className="mt-4 rounded-lg border border-border bg-card px-4 py-2 text-sm font-medium text-foreground transition-all hover:bg-muted"
+            >
+              {copied ? "Copied!" : "Share voting link"}
+            </button>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -181,13 +241,25 @@ function QuestionRankingCard({ question }: { question: QuestionResult }) {
                 {index + 1}
               </span>
               <span className="flex-1 font-medium text-foreground">{item.name}</span>
-              <span className="text-sm text-muted-foreground">{item.elo}</span>
             </li>
           ))}
         </ol>
       </CardContent>
     </Card>
   )
+}
+
+interface ScatterDataPoint {
+  id: string
+  name: string
+  x: number
+  y: number
+  q1Rank: number
+  q2Rank: number
+  totalItems: number
+  q1Label: string
+  q2Label: string
+  isEasyWin: boolean
 }
 
 function ScatterPlot({
@@ -202,15 +274,30 @@ function ScatterPlot({
   const q1 = questions[0]
   const q2 = questions[1]
 
-  // Build scatter data: x = q1 elo, y = q2 elo for each item
-  const scatterData = items.map((item) => {
+  // Calculate midpoints for quadrant determination
+  const q1Elos = q1.rankedItems.map(r => r.elo)
+  const q2Elos = q2.rankedItems.map(r => r.elo)
+  const q1Mid = (Math.max(...q1Elos) + Math.min(...q1Elos)) / 2
+  const q2Mid = (Math.max(...q2Elos) + Math.min(...q2Elos)) / 2
+
+  // Build scatter data
+  const scatterData: ScatterDataPoint[] = items.map((item) => {
     const q1Item = q1.rankedItems.find((r) => r.id === item.id)
     const q2Item = q2.rankedItems.find((r) => r.id === item.id)
+    const x = q1Item?.elo || 1000
+    const y = q2Item?.elo || 1000
+    
     return {
       id: item.id,
       name: item.name,
-      x: q1Item?.elo || 1000,
-      y: q2Item?.elo || 1000,
+      x,
+      y,
+      q1Rank: q1Item?.rank || 0,
+      q2Rank: q2Item?.rank || 0,
+      totalItems: items.length,
+      q1Label: q1.axisLabel || q1.questionText,
+      q2Label: q2.axisLabel || q2.questionText,
+      isEasyWin: x > q1Mid && y > q2Mid,
     }
   })
 
@@ -236,13 +323,6 @@ function ScatterPlot({
               <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0.08} />
             </linearGradient>
           </defs>
-          <rect
-            x={midPoint}
-            y={midPoint}
-            width={maxElo - midPoint}
-            height={maxElo - midPoint}
-            fill="url(#quadrantFill)"
-          />
           
           <XAxis
             type="number"
@@ -279,20 +359,52 @@ function ScatterPlot({
           <ReferenceLine x={midPoint} stroke="hsl(var(--border))" strokeDasharray="3 3" />
           <ReferenceLine y={midPoint} stroke="hsl(var(--border))" strokeDasharray="3 3" />
           
-          <Scatter data={scatterData} fill="hsl(var(--primary))">
+          <Tooltip content={<CustomTooltip />} />
+          
+          <Scatter data={scatterData}>
             {scatterData.map((entry, index) => (
-              <Cell key={`cell-${index}`} fill="hsl(var(--primary))" />
+              <Cell 
+                key={`cell-${index}`} 
+                fill="hsl(var(--primary))"
+                r={5}
+              />
             ))}
-            <LabelList
-              dataKey="name"
-              position="top"
-              offset={10}
-              fill="hsl(var(--foreground))"
-              fontSize={11}
-            />
           </Scatter>
         </ScatterChart>
       </ResponsiveContainer>
+      
+      {/* Legend */}
+      <div className="mt-4 flex flex-wrap justify-center gap-4 text-xs text-muted-foreground">
+        {scatterData
+          .filter(d => d.isEasyWin)
+          .map(d => (
+            <span key={d.id} className="flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-full bg-primary" />
+              {d.name}
+            </span>
+          ))}
+        {scatterData.filter(d => d.isEasyWin).length === 0 && (
+          <span>Hover over dots to see item details</span>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function CustomTooltip({ active, payload }: { active?: boolean; payload?: Array<{ payload: ScatterDataPoint }> }) {
+  if (!active || !payload || payload.length === 0) return null
+
+  const data = payload[0].payload
+
+  return (
+    <div className="rounded-lg border border-border bg-card p-3 shadow-lg">
+      <p className="font-medium text-foreground">{data.name}</p>
+      <p className="mt-1 text-sm text-muted-foreground">
+        {data.q1Label}: rank {data.q1Rank} of {data.totalItems}
+      </p>
+      <p className="text-sm text-muted-foreground">
+        {data.q2Label}: rank {data.q2Rank} of {data.totalItems}
+      </p>
     </div>
   )
 }
