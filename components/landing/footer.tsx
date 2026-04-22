@@ -1,29 +1,19 @@
+import Link from "next/link"
+
 export function Footer() {
-  const currentYear = new Date().getFullYear()
-
   return (
-    <footer className="border-t border-border px-6 py-8">
-      <div className="mx-auto flex max-w-5xl flex-col items-center justify-between gap-4 sm:flex-row">
-        {/* Logo */}
-        <div className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary">
-            <svg
-              className="h-4 w-4 text-primary-foreground"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2}
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" d="M8 9l4-4 4 4m0 6l-4 4-4-4" />
-            </svg>
-          </div>
-          <span className="font-medium text-foreground">Pairwise</span>
+    <footer className="border-t border-border px-6 py-8 md:px-12">
+      <div className="mx-auto flex max-w-4xl flex-col items-center justify-between gap-4 sm:flex-row">
+        <div className="flex items-center gap-6">
+          <span className="text-sm font-medium text-foreground">Pairwise</span>
+          <span className="text-sm text-muted-foreground">© 2026 Pairwise</span>
         </div>
-
-        {/* Copyright */}
-        <p className="text-sm text-muted-foreground">
-          &copy; {currentYear} Pairwise. All rights reserved.
-        </p>
+        <Link
+          href="/v/demo-q3-features"
+          className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+        >
+          Try demo
+        </Link>
       </div>
     </footer>
   )
