@@ -100,20 +100,24 @@ export function VotingFlow({
   const [isCreatingVoter, setIsCreatingVoter] = useState(false)
 
   // Sync state with props when they change (e.g., after router.refresh())
+  // Always sync voter - if null from server, set null; if exists, set it
   useEffect(() => {
+    console.log("[v0] useEffect: existingVoter changed", existingVoter?.id)
+    setVoter(existingVoter)
     if (existingVoter) {
-      setVoter(existingVoter)
       setIsCreatingVoter(false) // Voter loaded from server, stop loading
     }
   }, [existingVoter])
 
+  // Always sync questions from props
   useEffect(() => {
-    if (existingQuestions.length > 0) {
-      setQuestions(existingQuestions)
-    }
+    console.log("[v0] useEffect: existingQuestions changed, length:", existingQuestions.length)
+    setQuestions(existingQuestions)
   }, [existingQuestions])
 
+  // Always sync votes from props
   useEffect(() => {
+    console.log("[v0] useEffect: existingProgress changed, length:", existingProgress.length)
     setVotes(existingProgress)
   }, [existingProgress])
 
@@ -160,10 +164,16 @@ export function VotingFlow({
     setIsCreatingVoter(true)
     startTransition(async () => {
       try {
-        await createVoter(pairwise.id, selectedAudience)
-        // Don't set voter state here - let router.refresh() update via props
-        // This prevents showing completion screen before questions load
-        router.refresh()
+        const result = await createVoter(pairwise.id, selectedAudience)
+        // Set voter and questions directly from server action response
+        // This avoids timing issues with cookie/refresh
+        console.log("[v0] handleStartVoting: got result", { 
+          voterId: result.voter.id, 
+          questionsCount: result.questions.length 
+        })
+        setVoter(result.voter)
+        setQuestions(result.questions)
+        setIsCreatingVoter(false)
       } catch (error) {
         console.error("Failed to start voting:", error)
         setIsCreatingVoter(false)
@@ -204,12 +214,25 @@ export function VotingFlow({
     )
   }
 
-  // Show loading state if voter exists but questions haven't loaded yet
+  // Show error state if no items exist
+  if (items.length === 0) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center px-6">
+        <div className="text-center">
+          <h2 className="text-xl font-semibold text-foreground">No items to compare</h2>
+          <p className="mt-2 text-muted-foreground">This pairwise has no items configured yet.</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Show error state if no questions exist for this audience
   if (questions.length === 0) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center px-6">
         <div className="text-center">
-          <p className="text-lg text-muted-foreground">Loading questions...</p>
+          <h2 className="text-xl font-semibold text-foreground">No questions found</h2>
+          <p className="mt-2 text-muted-foreground">No questions are configured for your team.</p>
         </div>
       </div>
     )
