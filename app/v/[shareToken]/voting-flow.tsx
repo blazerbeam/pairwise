@@ -1,8 +1,8 @@
 "use client"
 
-import { useState, useCallback, useTransition, useEffect, useRef } from "react"
+import { useState, useCallback, useTransition, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { createVoter, submitVote, markVoterCompleted, clearVoterSession, undoLastVote } from "./actions"
+import { createVoter, submitVote, markVoterCompleted, clearVoterSession } from "./actions"
 import { cn } from "@/lib/utils"
 
 interface Pairwise {
@@ -241,34 +241,14 @@ export function VotingFlow({
     )
   }
 
-  // Handle undo
-  const handleUndo = useCallback(() => {
-    if (!voter || votes.length === 0) return
-    
-    startTransition(async () => {
-      try {
-        const result = await undoLastVote(voter.id)
-        if (result.success && result.undoneVote) {
-          // Remove the last vote from local state
-          setVotes(prev => prev.slice(0, -1))
-        }
-      } catch (error) {
-        console.error("Failed to undo vote:", error)
-      }
-    })
-  }, [voter, votes.length])
-
   // Show voting interface
   return (
     <VotingInterface
       question={currentPosition.question}
       pair={currentPosition.pair}
       onVote={handleVote}
-      onUndo={handleUndo}
       progress={progress}
       isPending={isPending}
-      canUndo={votes.length > 0}
-      voteCount={votes.length}
     />
   )
 }
@@ -342,45 +322,27 @@ function VotingInterface({
   question,
   pair,
   onVote,
-  onUndo,
   progress,
   isPending,
-  canUndo,
-  voteCount,
 }: {
   question: Question
   pair: Pair
   onVote: (winnerId: string) => void
-  onUndo: () => void
   progress: number
   isPending: boolean
-  canUndo: boolean
-  voteCount: number
 }) {
   const [expandedA, setExpandedA] = useState(false)
   const [expandedB, setExpandedB] = useState(false)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [isAnimating, setIsAnimating] = useState(false)
-  
-  // Track the animation timeout so we can cancel it on undo
-  const animationTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
-  // Reset expanded state and selection when pair changes OR when voteCount decreases (undo)
+  // Reset expanded state and selection when pair changes
   useEffect(() => {
     setExpandedA(false)
     setExpandedB(false)
     setSelectedId(null)
     setIsAnimating(false)
-  }, [pair.itemA.id, pair.itemB.id, voteCount])
-  
-  // Cleanup timeout on unmount
-  useEffect(() => {
-    return () => {
-      if (animationTimeoutRef.current) {
-        clearTimeout(animationTimeoutRef.current)
-      }
-    }
-  }, [])
+  }, [pair.itemA.id, pair.itemB.id])
 
   // Handle vote with selection animation
   const handleVoteWithAnimation = (itemId: string) => {
@@ -389,33 +351,11 @@ function VotingInterface({
     setSelectedId(itemId)
     setIsAnimating(true)
     
-    // Clear any existing timeout
-    if (animationTimeoutRef.current) {
-      clearTimeout(animationTimeoutRef.current)
-    }
-    
     // Wait for animation, then submit vote
-    animationTimeoutRef.current = setTimeout(() => {
-      animationTimeoutRef.current = null
+    setTimeout(() => {
       onVote(itemId)
-      // Reset will happen via useEffect when pair changes or voteCount changes
+      // Reset will happen via useEffect when pair changes
     }, 250)
-  }
-
-  // Handle undo - cancel any pending animation timeout and reset state
-  const handleUndoClick = () => {
-    // Cancel any pending animation timeout FIRST
-    if (animationTimeoutRef.current) {
-      clearTimeout(animationTimeoutRef.current)
-      animationTimeoutRef.current = null
-    }
-    
-    // Reset animation state
-    setSelectedId(null)
-    setIsAnimating(false)
-    
-    // Then trigger undo
-    onUndo()
   }
 
   return (
@@ -475,18 +415,6 @@ function VotingInterface({
             />
           </div>
         </div>
-
-        {/* Undo button - below cards, centered */}
-        {canUndo && (
-          <button
-            onClick={handleUndoClick}
-            disabled={isPending}
-            className="mt-8 inline-flex items-center gap-1.5 rounded-full bg-muted px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted/80 disabled:opacity-50"
-          >
-            <span>←</span>
-            <span>Undo last vote</span>
-          </button>
-        )}
       </div>
     </div>
   )
