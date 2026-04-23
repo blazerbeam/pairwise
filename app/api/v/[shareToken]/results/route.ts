@@ -48,7 +48,7 @@ export async function GET(
   // Fetch pairwise
   const { data: pairwise } = await supabase
     .from("pairwises")
-    .select("id, name, owner_id")
+    .select("id, name, owner_id, template")
     .eq("share_token", shareToken)
     .single()
 
@@ -188,6 +188,7 @@ export async function GET(
       voterCount: voterCount || 0,
       audienceCount: uniqueAudiences.size,
       pairwiseName: pairwise.name,
+      template: pairwise.template,
     },
   })
 }

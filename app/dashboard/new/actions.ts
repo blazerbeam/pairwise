@@ -38,7 +38,8 @@ interface AudienceInput {
 export async function createPairwise(
   name: string,
   items: ItemInput[],
-  audiences: AudienceInput[]
+  audiences: AudienceInput[],
+  template: string | null
 ) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -57,6 +58,7 @@ export async function createPairwise(
       name,
       status: "active",
       share_token: shareToken,
+      template,
     })
     .select("id, name, share_token")
     .single()

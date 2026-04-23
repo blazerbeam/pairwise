@@ -40,6 +40,35 @@ interface ResultsData {
   voterCount: number
   audienceCount: number
   pairwiseName: string
+  template: string | null
+}
+
+// Named quadrants by template
+const QUADRANT_LABELS: Record<string, { upperRight: string; upperLeft: string; lowerRight: string; lowerLeft: string; xAxis: string; yAxis: string }> = {
+  value_vs_effort: {
+    upperRight: "Easy wins",
+    upperLeft: "Worth the effort",
+    lowerRight: "Low-hanging fruit",
+    lowerLeft: "Reconsider",
+    xAxis: "Impact",
+    yAxis: "Effort (easier →)",
+  },
+  revenue_vs_risk: {
+    upperRight: "Safe bets",
+    upperLeft: "High reward",
+    lowerRight: "Low risk, low reward",
+    lowerLeft: "Risky & low value",
+    xAxis: "Revenue",
+    yAxis: "Risk (lower →)",
+  },
+  impact_vs_urgency: {
+    upperRight: "Do now",
+    upperLeft: "Plan for later",
+    lowerRight: "Quick wins",
+    lowerLeft: "Deprioritize",
+    xAxis: "Impact",
+    yAxis: "Urgency",
+  },
 }
 
 export default function ResultsPage() {
@@ -137,7 +166,7 @@ export default function ResultsPage() {
               </CardHeader>
               <CardContent>
                 {canShowScatter ? (
-                  <ScatterPlot questions={data.questions} items={data.items} />
+                  <ScatterPlot questions={data.questions} items={data.items} template={data.template} />
                 ) : (
                   <div className="flex h-[200px] items-center justify-center">
                     <p className="text-muted-foreground">
@@ -252,8 +281,8 @@ function QuestionRankingCard({
 interface ScatterDataPoint {
   id: string
   name: string
-  x: number
-  y: number
+  x: number // Inverted rank (higher = better)
+  y: number // Inverted rank (higher = better)
   q1Rank: number
   q2Rank: number
   totalItems: number
@@ -265,14 +294,21 @@ interface ScatterDataPoint {
 function ScatterPlot({
   questions,
   items,
+  template,
 }: {
   questions: QuestionResult[]
   items: { id: string; name: string }[]
+  template: string | null
 }) {
   if (questions.length !== 2) return null
 
   const q1 = questions[0]
   const q2 = questions[1]
+
+  // Get quadrant labels from template or use axis labels as fallback
+  const quadrantConfig = template ? QUADRANT_LABELS[template] : null
+  const xLabel = quadrantConfig?.xAxis || q1.axisLabel || q1.questionText
+  const yLabel = quadrantConfig?.yAxis || q2.axisLabel || q2.questionText
 
   // Calculate midpoints for quadrant determination
   const q1Elos = q1.rankedItems.map(r => r.elo)
@@ -280,12 +316,14 @@ function ScatterPlot({
   const q1Mid = (Math.max(...q1Elos) + Math.min(...q1Elos)) / 2
   const q2Mid = (Math.max(...q2Elos) + Math.min(...q2Elos)) / 2
 
-  // Build scatter data
+  // Build scatter data using ranks (inverted so higher rank = higher position)
+  const totalItems = items.length
   const scatterData: ScatterDataPoint[] = items.map((item) => {
     const q1Item = q1.rankedItems.find((r) => r.id === item.id)
     const q2Item = q2.rankedItems.find((r) => r.id === item.id)
-    const x = q1Item?.elo || 1000
-    const y = q2Item?.elo || 1000
+    // Invert ranks so rank 1 = highest position on chart
+    const x = totalItems - (q1Item?.rank || totalItems) + 1
+    const y = totalItems - (q2Item?.rank || totalItems) + 1
     
     return {
       id: item.id,
@@ -294,87 +332,89 @@ function ScatterPlot({
       y,
       q1Rank: q1Item?.rank || 0,
       q2Rank: q2Item?.rank || 0,
-      totalItems: items.length,
+      totalItems,
       q1Label: q1.axisLabel || q1.questionText,
       q2Label: q2.axisLabel || q2.questionText,
-      isEasyWin: x > q1Mid && y > q2Mid,
+      isEasyWin: x > totalItems / 2 && y > totalItems / 2,
     }
   })
 
-  // Calculate axis bounds
-  const allElos = scatterData.flatMap((d) => [d.x, d.y])
-  const minElo = Math.min(...allElos) - 50
-  const maxElo = Math.max(...allElos) + 50
-  const midPoint = (minElo + maxElo) / 2
-
-  const xLabel = q1.axisLabel || q1.questionText
-  const yLabel = q2.axisLabel || q2.questionText
+  // Calculate axis bounds (1 to totalItems)
+  const minVal = 0.5
+  const maxVal = totalItems + 0.5
+  const midPoint = (totalItems + 1) / 2
 
   return (
-    <div className="h-[400px] w-full">
-      <ResponsiveContainer width="100%" height="100%">
-        <ScatterChart margin={{ top: 20, right: 30, bottom: 60, left: 60 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-          
-          {/* Highlight upper-right quadrant */}
-          <defs>
-            <linearGradient id="quadrantFill" x1="0" y1="1" x2="1" y2="0">
-              <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.03} />
-              <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0.08} />
-            </linearGradient>
-          </defs>
-          
-          <XAxis
-            type="number"
-            dataKey="x"
-            domain={[minElo, maxElo]}
-            tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }}
-            tickLine={{ stroke: "hsl(var(--border))" }}
-            axisLine={{ stroke: "hsl(var(--border))" }}
-            label={{
-              value: `${xLabel} →`,
-              position: "bottom",
-              offset: 40,
-              fill: "hsl(var(--foreground))",
-              fontSize: 13,
-            }}
-          />
-          <YAxis
-            type="number"
-            dataKey="y"
-            domain={[minElo, maxElo]}
-            tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }}
-            tickLine={{ stroke: "hsl(var(--border))" }}
-            axisLine={{ stroke: "hsl(var(--border))" }}
-            label={{
-              value: `${yLabel} →`,
-              angle: -90,
-              position: "left",
-              offset: 40,
-              fill: "hsl(var(--foreground))",
-              fontSize: 13,
-            }}
-          />
-          
-          <ReferenceLine x={midPoint} stroke="hsl(var(--border))" strokeDasharray="3 3" />
-          <ReferenceLine y={midPoint} stroke="hsl(var(--border))" strokeDasharray="3 3" />
-          
-          <Tooltip content={<CustomTooltip />} />
-          
-          <Scatter data={scatterData}>
-            {scatterData.map((entry, index) => (
-              <Cell 
-                key={`cell-${index}`} 
-                fill="hsl(var(--primary))"
-                r={5}
-              />
-            ))}
-          </Scatter>
-        </ScatterChart>
-      </ResponsiveContainer>
+    <div className="relative">
+      {/* Quadrant labels (only if template has them) */}
+      {quadrantConfig && (
+        <div className="pointer-events-none absolute inset-0" style={{ margin: "20px 30px 60px 60px" }}>
+          <div className="relative h-full w-full text-xs text-muted-foreground">
+            <span className="absolute right-2 top-2">{quadrantConfig.upperRight}</span>
+            <span className="absolute left-2 top-2">{quadrantConfig.upperLeft}</span>
+            <span className="absolute bottom-2 right-2">{quadrantConfig.lowerRight}</span>
+            <span className="absolute bottom-2 left-2">{quadrantConfig.lowerLeft}</span>
+          </div>
+        </div>
+      )}
       
-      {/* Legend */}
-      <div className="mt-4 flex flex-wrap justify-center gap-4 text-xs text-muted-foreground">
+      <div className="h-[350px] w-full">
+        <ResponsiveContainer width="100%" height="100%">
+          <ScatterChart margin={{ top: 20, right: 30, bottom: 60, left: 60 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+            
+            <XAxis
+              type="number"
+              dataKey="x"
+              domain={[minVal, maxVal]}
+              tick={false}
+              tickLine={false}
+              axisLine={{ stroke: "hsl(var(--border))" }}
+              label={{
+                value: `${xLabel} →`,
+                position: "bottom",
+                offset: 20,
+                fill: "hsl(var(--foreground))",
+                fontSize: 13,
+              }}
+            />
+            <YAxis
+              type="number"
+              dataKey="y"
+              domain={[minVal, maxVal]}
+              tick={false}
+              tickLine={false}
+              axisLine={{ stroke: "hsl(var(--border))" }}
+              label={{
+                value: `${yLabel} →`,
+                angle: -90,
+                position: "left",
+                offset: 20,
+                fill: "hsl(var(--foreground))",
+                fontSize: 13,
+              }}
+            />
+            
+            <ReferenceLine x={midPoint} stroke="hsl(var(--border))" strokeDasharray="3 3" />
+            <ReferenceLine y={midPoint} stroke="hsl(var(--border))" strokeDasharray="3 3" />
+            
+            <Tooltip content={<CustomTooltip />} />
+            
+            <Scatter data={scatterData}>
+              {scatterData.map((entry, index) => (
+                <Cell 
+                  key={`cell-${index}`} 
+                  fill="hsl(var(--primary))"
+                  r={6}
+                />
+              ))}
+            </Scatter>
+          </ScatterChart>
+        </ResponsiveContainer>
+      </div>
+      
+      {/* Legend - items in upper-right quadrant */}
+      <div className="mt-2 flex flex-wrap justify-center gap-3 text-xs text-muted-foreground">
         {scatterData
           .filter(d => d.isEasyWin)
           .map(d => (
