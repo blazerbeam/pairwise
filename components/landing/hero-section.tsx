@@ -2,7 +2,7 @@ import Link from "next/link"
 
 export function HeroSection() {
   return (
-    <section className="px-6 pb-24 pt-16 md:px-12 md:pt-24">
+    <section className="px-6 pb-12 pt-16 md:px-12 md:pt-24">
       <div className="mx-auto max-w-3xl text-center">
         <h1 className="text-4xl font-semibold tracking-tight text-foreground md:text-5xl lg:text-6xl text-balance">
           Stop debating. Start prioritizing.
@@ -19,10 +19,15 @@ export function HeroSection() {
           </Link>
           <Link
             href="#waitlist"
-            className="inline-flex h-12 items-center justify-center rounded-lg border border-border bg-background px-8 text-sm font-medium text-foreground transition-all hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            className="inline-flex h-12 items-center justify-center rounded-lg border-[1.5px] border-accent bg-card px-8 text-sm font-medium text-foreground transition-all hover:bg-accent/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           >
             Request early access
           </Link>
+        </div>
+        
+        {/* Visual anchor / divider */}
+        <div className="mt-16 flex justify-center">
+          <span className="text-muted-foreground/50 tracking-widest">·  ·  ·</span>
         </div>
       </div>
     </section>
