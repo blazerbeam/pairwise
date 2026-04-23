@@ -70,6 +70,7 @@ export default function NewPairwisePage() {
   // Form state
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null)
   const [name, setName] = useState("")
+  const [description, setDescription] = useState("")
   const [items, setItems] = useState<ItemRow[]>([
     { id: "1", name: "", description: "" },
     { id: "2", name: "", description: "" },
@@ -182,6 +183,7 @@ export default function NewPairwisePage() {
       try {
         const pairwise = await createPairwise(
           name.trim(),
+          description.trim() || null,
           validItems.map((i, idx) => ({ name: i.name.trim(), description: i.description.trim() || null, position: idx })),
           validAudiences.map((a, aIdx) => ({
             name: a.name.trim(),
@@ -299,6 +301,16 @@ export default function NewPairwisePage() {
           placeholder="e.g., Q3 Feature Prioritization"
           className="w-full rounded-lg border border-input bg-background px-4 py-3 text-sm placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
         />
+        <div className="space-y-2">
+          <label className="text-sm text-muted-foreground">Description (optional)</label>
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="e.g., Help us decide what to build next quarter. Takes about 2 minutes."
+            rows={2}
+            className="w-full rounded-lg border border-input bg-background px-4 py-3 text-sm placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 resize-none"
+          />
+        </div>
       </section>
 
       {/* Section 3: Items */}

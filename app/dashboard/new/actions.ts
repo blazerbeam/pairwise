@@ -37,6 +37,7 @@ interface AudienceInput {
 
 export async function createPairwise(
   name: string,
+  description: string | null,
   items: ItemInput[],
   audiences: AudienceInput[],
   template: string | null
@@ -56,6 +57,7 @@ export async function createPairwise(
     .insert({
       owner_id: user.id,
       name,
+      description,
       status: "active",
       share_token: shareToken,
       template,
