@@ -91,7 +91,6 @@ export default async function DashboardPage() {
                     </Link>
                     <Link
                       href={resultsUrl}
-                      target="_blank"
                       className="text-sm text-primary hover:underline"
                     >
                       Results →

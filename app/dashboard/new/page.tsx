@@ -6,10 +6,10 @@ import { QRCodeSVG } from "qrcode.react"
 import { Card, CardContent } from "@/components/ui/card"
 import { createPairwise } from "./actions"
 
-// Template definitions
+// Template definitions - slugs match what's stored in DB
 const TEMPLATES = [
   {
-    id: "value-effort",
+    id: "value_vs_effort",
     name: "Value vs Effort",
     audiences: [
       { name: "Product", questions: [{ text: "Which would have more impact on our goals?", axis_label: "Impact" }] },
@@ -17,7 +17,7 @@ const TEMPLATES = [
     ],
   },
   {
-    id: "revenue-risk",
+    id: "revenue_vs_risk",
     name: "Revenue vs Risk",
     audiences: [
       { name: "Sales", questions: [{ text: "Which would drive more revenue?", axis_label: "Revenue" }] },
@@ -25,7 +25,7 @@ const TEMPLATES = [
     ],
   },
   {
-    id: "impact-urgency",
+    id: "impact_vs_urgency",
     name: "Impact vs Urgency",
     audiences: [
       { name: "Leadership", questions: [{ text: "Which has greater long-term impact?", axis_label: "Impact" }] },
@@ -33,7 +33,7 @@ const TEMPLATES = [
     ],
   },
   {
-    id: "scratch",
+    id: null, // null for scratch
     name: "Start from scratch",
     audiences: [],
   },
@@ -83,7 +83,7 @@ export default function NewPairwisePage() {
   const [copied, setCopied] = useState(false)
 
   // Handle template selection
-  const handleSelectTemplate = (templateId: string) => {
+  const handleSelectTemplate = (templateId: string | null) => {
     setSelectedTemplate(templateId)
     const template = TEMPLATES.find((t) => t.id === templateId)
     if (template) {
@@ -193,7 +193,8 @@ export default function NewPairwisePage() {
                 axis_label: q.axis_label.trim() || null,
                 position: qIdx,
               })),
-          }))
+          })),
+          selectedTemplate // Pass the template slug (or null for scratch)
         )
         setCreatedPairwise(pairwise)
       } catch (err) {
