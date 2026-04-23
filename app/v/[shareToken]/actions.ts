@@ -125,42 +125,6 @@ export async function clearVoterSession() {
   return { success: true }
 }
 
-export async function undoLastVote(voterId: string) {
-  const supabase = await createClient()
-  
-  // Find and delete the most recent vote for this voter
-  const { data: lastVote, error: fetchError } = await supabase
-    .from("votes")
-    .select("id, question_id, item_a_id, item_b_id")
-    .eq("voter_id", voterId)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .single()
-  
-  if (fetchError || !lastVote) {
-    return { success: false, error: "No vote to undo" }
-  }
-  
-  const { error: deleteError } = await supabase
-    .from("votes")
-    .delete()
-    .eq("id", lastVote.id)
-  
-  if (deleteError) {
-    console.error("Failed to undo vote:", deleteError)
-    throw new Error("Failed to undo vote")
-  }
-  
-  return { 
-    success: true, 
-    undoneVote: {
-      question_id: lastVote.question_id,
-      item_a_id: lastVote.item_a_id,
-      item_b_id: lastVote.item_b_id,
-    }
-  }
-}
-
 export async function checkResultsAccess(pairwiseId: string, ownerId: string | null) {
   const cookieStore = await cookies()
   const sessionToken = cookieStore.get(VOTER_COOKIE_NAME)?.value
