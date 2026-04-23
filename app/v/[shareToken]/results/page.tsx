@@ -11,6 +11,7 @@ import {
   CartesianGrid,
   ResponsiveContainer,
   ReferenceLine,
+  ReferenceArea,
   Cell,
   Tooltip,
 } from "recharts"
@@ -43,13 +44,13 @@ interface ResultsData {
   template: string | null
 }
 
-// Named quadrants by template
+// Named quadrants by template - EXACT strings per spec
 const QUADRANT_LABELS: Record<string, { upperRight: string; upperLeft: string; lowerRight: string; lowerLeft: string; xAxis: string; yAxis: string }> = {
   value_vs_effort: {
-    upperRight: "Easy wins",
-    upperLeft: "Worth the effort",
-    lowerRight: "Low-hanging fruit",
-    lowerLeft: "Reconsider",
+    upperRight: "Quick wins",      // high Impact, easy Effort
+    upperLeft: "Fill-ins",         // low Impact, easy Effort  
+    lowerRight: "Big projects",    // high Impact, hard Effort
+    lowerLeft: "Time sinks",       // low Impact, hard Effort
     xAxis: "Impact",
     yAxis: "Effort (easier →)",
   },
@@ -344,23 +345,35 @@ function ScatterPlot({
   const maxVal = totalItems + 0.5
   const midPoint = (totalItems + 1) / 2
 
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null)
+
   return (
     <div className="relative">
-      {/* Quadrant labels (only if template has them) */}
+      {/* Quadrant labels (only if template has them) - positioned inward from corners */}
       {quadrantConfig && (
-        <div className="pointer-events-none absolute inset-0" style={{ margin: "20px 30px 60px 60px" }}>
-          <div className="relative h-full w-full text-xs text-muted-foreground">
-            <span className="absolute right-2 top-2">{quadrantConfig.upperRight}</span>
-            <span className="absolute left-2 top-2">{quadrantConfig.upperLeft}</span>
-            <span className="absolute bottom-2 right-2">{quadrantConfig.lowerRight}</span>
-            <span className="absolute bottom-2 left-2">{quadrantConfig.lowerLeft}</span>
+        <div className="pointer-events-none absolute inset-0" style={{ margin: "20px 30px 80px 80px" }}>
+          <div className="relative h-full w-full text-xs font-medium text-muted-foreground">
+            <span className="absolute right-3 top-3">{quadrantConfig.upperRight}</span>
+            <span className="absolute left-3 top-3">{quadrantConfig.upperLeft}</span>
+            <span className="absolute bottom-3 right-3">{quadrantConfig.lowerRight}</span>
+            <span className="absolute bottom-3 left-3">{quadrantConfig.lowerLeft}</span>
           </div>
         </div>
       )}
       
       <div className="h-[350px] w-full">
         <ResponsiveContainer width="100%" height="100%">
-          <ScatterChart margin={{ top: 20, right: 30, bottom: 60, left: 60 }}>
+          <ScatterChart margin={{ top: 20, right: 30, bottom: 80, left: 80 }}>
+            {/* Quadrant background tints */}
+            {/* Bottom-left quadrant - subtle gray */}
+            <ReferenceArea x1={minVal} x2={midPoint} y1={minVal} y2={midPoint} fill="hsl(var(--muted))" fillOpacity={0.3} />
+            {/* Bottom-right quadrant - subtle gray */}
+            <ReferenceArea x1={midPoint} x2={maxVal} y1={minVal} y2={midPoint} fill="hsl(var(--muted))" fillOpacity={0.2} />
+            {/* Top-left quadrant - subtle gray */}
+            <ReferenceArea x1={minVal} x2={midPoint} y1={midPoint} y2={maxVal} fill="hsl(var(--muted))" fillOpacity={0.2} />
+            {/* Top-right quadrant - accent highlight (the "good" quadrant) */}
+            <ReferenceArea x1={midPoint} x2={maxVal} y1={midPoint} y2={maxVal} fill="hsl(var(--primary))" fillOpacity={0.08} />
+            
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
             
             <XAxis
@@ -373,7 +386,7 @@ function ScatterPlot({
               label={{
                 value: `${xLabel} →`,
                 position: "bottom",
-                offset: 20,
+                offset: 40,
                 fill: "hsl(var(--foreground))",
                 fontSize: 13,
               }}
@@ -389,23 +402,31 @@ function ScatterPlot({
                 value: `${yLabel} →`,
                 angle: -90,
                 position: "left",
-                offset: 20,
+                offset: 40,
                 fill: "hsl(var(--foreground))",
                 fontSize: 13,
               }}
             />
             
-            <ReferenceLine x={midPoint} stroke="hsl(var(--border))" strokeDasharray="3 3" />
-            <ReferenceLine y={midPoint} stroke="hsl(var(--border))" strokeDasharray="3 3" />
+            {/* Midpoint dividing lines - more visible */}
+            <ReferenceLine x={midPoint} stroke="hsl(var(--border))" strokeWidth={1.5} />
+            <ReferenceLine y={midPoint} stroke="hsl(var(--border))" strokeWidth={1.5} />
             
             <Tooltip content={<CustomTooltip />} />
             
-            <Scatter data={scatterData}>
+            <Scatter 
+              data={scatterData}
+              onMouseLeave={() => setHoveredIndex(null)}
+            >
               {scatterData.map((entry, index) => (
                 <Cell 
                   key={`cell-${index}`} 
                   fill="hsl(var(--primary))"
-                  r={6}
+                  stroke={hoveredIndex === index ? "hsl(var(--primary))" : "transparent"}
+                  strokeWidth={hoveredIndex === index ? 3 : 0}
+                  r={hoveredIndex === index ? 8 : 6}
+                  style={{ cursor: "pointer", transition: "all 0.15s ease" }}
+                  onMouseEnter={() => setHoveredIndex(index)}
                 />
               ))}
             </Scatter>
