@@ -44,11 +44,12 @@ interface ResultsData {
 }
 
 // Quadrant color scheme - pastel fills with saturated dot colors
+// Value vs Effort template uses these exact colors at full opacity
 const QUADRANT_COLORS = {
-  upperRight: { fill: "#A7D8B8", fillOpacity: 0.18, dot: "#3FA968", border: "#2E8B57", label: "#2E7D52" }, // Green - Quick wins
-  upperLeft:  { fill: "#F0A6C4", fillOpacity: 0.18, dot: "#D85C8C", border: "#C44D7D", label: "#B84574" }, // Pink - Fill-ins
-  lowerRight: { fill: "#9EC5E8", fillOpacity: 0.18, dot: "#2E7BC4", border: "#1E5A9C", label: "#1E5A9C" }, // Blue - Big projects
-  lowerLeft:  { fill: "#C8C8C8", fillOpacity: 0.15, dot: "#6B6B6B", border: "#525252", label: "#525252" }, // Gray - Time sinks
+  upperRight: { fill: "#D1F2DD", fillOpacity: 1, dot: "#3FA968", border: "#2E8B57", label: "#2E7D52" }, // Green - Quick wins
+  upperLeft:  { fill: "#FAD9E5", fillOpacity: 1, dot: "#D85C8C", border: "#C44D7D", label: "#B84574" }, // Pink - Fill-ins
+  lowerRight: { fill: "#D4E6F7", fillOpacity: 1, dot: "#2E7BC4", border: "#1E5A9C", label: "#1E5A9C" }, // Blue - Big projects
+  lowerLeft:  { fill: "#E8E8E8", fillOpacity: 1, dot: "#6B6B6B", border: "#525252", label: "#525252" }, // Gray - Time sinks
 }
 
 // Custom pairwise fallback (no template) - all neutral
