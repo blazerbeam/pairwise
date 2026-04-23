@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useTransition, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { createVoter, submitVote, markVoterCompleted, clearVoterSession } from "./actions"
+import { createVoter, submitVote, markVoterCompleted, clearVoterSession, undoLastVote } from "./actions"
 import { cn } from "@/lib/utils"
 
 interface Pairwise {
@@ -241,14 +241,33 @@ export function VotingFlow({
     )
   }
 
+  // Handle undo
+  const handleUndo = useCallback(() => {
+    if (!voter || votes.length === 0) return
+    
+    startTransition(async () => {
+      try {
+        const result = await undoLastVote(voter.id)
+        if (result.success && result.undoneVote) {
+          // Remove the last vote from local state
+          setVotes(prev => prev.slice(0, -1))
+        }
+      } catch (error) {
+        console.error("Failed to undo vote:", error)
+      }
+    })
+  }, [voter, votes.length])
+
   // Show voting interface
   return (
     <VotingInterface
       question={currentPosition.question}
       pair={currentPosition.pair}
       onVote={handleVote}
+      onUndo={handleUndo}
       progress={progress}
       isPending={isPending}
+      canUndo={votes.length > 0}
     />
   )
 }
@@ -322,26 +341,60 @@ function VotingInterface({
   question,
   pair,
   onVote,
+  onUndo,
   progress,
   isPending,
+  canUndo,
 }: {
   question: Question
   pair: Pair
   onVote: (winnerId: string) => void
+  onUndo: () => void
   progress: number
   isPending: boolean
+  canUndo: boolean
 }) {
   const [expandedA, setExpandedA] = useState(false)
   const [expandedB, setExpandedB] = useState(false)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [isAnimating, setIsAnimating] = useState(false)
 
-  // Reset expanded state when pair changes
+  // Reset expanded state and selection when pair changes
   useEffect(() => {
     setExpandedA(false)
     setExpandedB(false)
+    setSelectedId(null)
+    setIsAnimating(false)
   }, [pair.itemA.id, pair.itemB.id])
 
+  // Handle vote with selection animation
+  const handleVoteWithAnimation = (itemId: string) => {
+    if (isPending || isAnimating) return
+    
+    setSelectedId(itemId)
+    setIsAnimating(true)
+    
+    // Wait for animation, then submit vote
+    setTimeout(() => {
+      onVote(itemId)
+      // Reset will happen via useEffect when pair changes
+    }, 250)
+  }
+
+  // Handle undo - wait for animation to complete if in progress
+  const handleUndoClick = () => {
+    if (isAnimating) {
+      // Wait for animation to complete
+      setTimeout(() => {
+        onUndo()
+      }, 300)
+    } else {
+      onUndo()
+    }
+  }
+
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="flex min-h-screen flex-col bg-background">
       {/* Progress bar */}
       <div className="sticky top-0 z-20 bg-background/95 px-6 pb-4 pt-6 backdrop-blur-sm">
         <div className="flex flex-col items-center gap-2">
@@ -351,9 +404,21 @@ function VotingInterface({
               style={{ width: `${progress}%` }}
             />
           </div>
-          <span className="text-xs font-medium text-muted-foreground">
-            {progress}% complete
-          </span>
+          <div className="flex w-full max-w-md items-center justify-between">
+            <span className="text-xs font-medium text-muted-foreground">
+              {progress}% complete
+            </span>
+            {/* Undo button */}
+            {canUndo && (
+              <button
+                onClick={handleUndoClick}
+                disabled={isPending}
+                className="text-xs text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
+              >
+                ← Undo last vote
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -370,10 +435,12 @@ function VotingInterface({
           <div className="flex w-full md:flex-1">
             <OptionCard
               item={pair.itemA}
-              onSelect={() => onVote(pair.itemA.id)}
+              onSelect={() => handleVoteWithAnimation(pair.itemA.id)}
               expanded={expandedA}
               onToggleExpand={() => setExpandedA(!expandedA)}
-              disabled={isPending}
+              disabled={isPending || isAnimating}
+              isSelected={selectedId === pair.itemA.id}
+              isFaded={selectedId !== null && selectedId !== pair.itemA.id}
             />
           </div>
 
@@ -386,10 +453,12 @@ function VotingInterface({
           <div className="flex w-full md:flex-1">
             <OptionCard
               item={pair.itemB}
-              onSelect={() => onVote(pair.itemB.id)}
+              onSelect={() => handleVoteWithAnimation(pair.itemB.id)}
               expanded={expandedB}
               onToggleExpand={() => setExpandedB(!expandedB)}
-              disabled={isPending}
+              disabled={isPending || isAnimating}
+              isSelected={selectedId === pair.itemB.id}
+              isFaded={selectedId !== null && selectedId !== pair.itemB.id}
             />
           </div>
         </div>
@@ -405,28 +474,46 @@ function OptionCard({
   expanded,
   onToggleExpand,
   disabled,
+  isSelected,
+  isFaded,
 }: {
   item: Item
   onSelect: () => void
   expanded: boolean
   onToggleExpand: () => void
   disabled: boolean
+  isSelected: boolean
+  isFaded: boolean
 }) {
   return (
     <button
       onClick={onSelect}
       disabled={disabled}
       className={cn(
-        "group relative flex min-h-[180px] w-full flex-col items-center justify-center rounded-lg border border-border bg-card p-8 text-center shadow-sm transition-all duration-200",
-        "hover:border-primary/40 hover:shadow-md hover:shadow-primary/5",
-        "active:scale-[0.98] active:shadow-sm",
+        "group relative flex min-h-[180px] w-full flex-col items-center justify-center rounded-lg border p-8 text-center transition-all duration-200 ease-out",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2",
         "md:min-h-[280px]",
-        "disabled:cursor-not-allowed disabled:opacity-70"
+        // Default state
+        !isSelected && !isFaded && [
+          "border-border bg-card shadow-sm",
+          "hover:border-primary/40 hover:shadow-md hover:shadow-primary/5",
+          "active:scale-[0.98] active:shadow-sm",
+        ],
+        // Selected state - primary fill
+        isSelected && "border-primary bg-primary shadow-md",
+        // Faded state - dimmed
+        isFaded && "border-border bg-card opacity-50 shadow-sm",
+        // Disabled
+        disabled && !isSelected && "cursor-not-allowed"
       )}
     >
       <div className="flex flex-1 flex-col items-center justify-center">
-        <span className="text-xl font-medium leading-tight text-card-foreground md:text-2xl text-balance">
+        <span 
+          className={cn(
+            "text-xl font-medium leading-tight md:text-2xl text-balance transition-colors duration-200 ease-out",
+            isSelected ? "text-primary-foreground" : "text-card-foreground"
+          )}
+        >
           {item.name}
         </span>
 
@@ -439,7 +526,10 @@ function OptionCard({
             )}
           >
             <div className="overflow-hidden">
-              <p className="max-w-xs text-sm leading-relaxed text-muted-foreground">
+              <p className={cn(
+                "max-w-xs text-sm leading-relaxed transition-colors duration-200 ease-out",
+                isSelected ? "text-primary-foreground/80" : "text-muted-foreground"
+              )}>
                 {item.description}
               </p>
             </div>
@@ -448,7 +538,7 @@ function OptionCard({
       </div>
 
       {/* Description toggle */}
-      {item.description && (
+      {item.description && !isSelected && (
         <span
           role="button"
           tabIndex={0}
