@@ -8,7 +8,6 @@ import {
   Scatter,
   XAxis,
   YAxis,
-  CartesianGrid,
   ResponsiveContainer,
   ReferenceLine,
   ReferenceArea,
@@ -44,31 +43,47 @@ interface ResultsData {
   template: string | null
 }
 
+// Quadrant color scheme - pastel fills with saturated dot colors
+const QUADRANT_COLORS = {
+  upperRight: { fill: "#A7D8B8", fillOpacity: 0.18, dot: "#3FA968", border: "#2E8B57", label: "#2E7D52" }, // Green - Quick wins
+  upperLeft:  { fill: "#F0A6C4", fillOpacity: 0.18, dot: "#D85C8C", border: "#C44D7D", label: "#B84574" }, // Pink - Fill-ins
+  lowerRight: { fill: "#9EC5E8", fillOpacity: 0.18, dot: "#2E7BC4", border: "#1E5A9C", label: "#1E5A9C" }, // Blue - Big projects
+  lowerLeft:  { fill: "#C8C8C8", fillOpacity: 0.15, dot: "#6B6B6B", border: "#525252", label: "#525252" }, // Gray - Time sinks
+}
+
+// Custom pairwise fallback (no template) - all neutral
+const CUSTOM_QUADRANT_COLORS = {
+  fill: "#E8E8E8",
+  fillOpacity: 0.10,
+  dot: "hsl(var(--primary))", // Brand accent color
+  border: "hsl(var(--primary))",
+}
+
 // Named quadrants by template - EXACT strings per spec
 const QUADRANT_LABELS: Record<string, { upperRight: string; upperLeft: string; lowerRight: string; lowerLeft: string; xAxis: string; yAxis: string }> = {
   value_vs_effort: {
-    upperRight: "Quick wins",      // high Impact, easy Effort
-    upperLeft: "Fill-ins",         // low Impact, easy Effort  
-    lowerRight: "Big projects",    // high Impact, hard Effort
-    lowerLeft: "Time sinks",       // low Impact, hard Effort
-    xAxis: "Impact",
-    yAxis: "Effort (easier →)",
+    upperRight: "QUICK WINS",      // high Impact, easy Effort
+    upperLeft: "FILL-INS",         // low Impact, easy Effort  
+    lowerRight: "BIG PROJECTS",    // high Impact, hard Effort
+    lowerLeft: "TIME SINKS",       // low Impact, hard Effort
+    xAxis: "IMPACT",
+    yAxis: "EFFORT (EASIER →)",
   },
   revenue_vs_risk: {
-    upperRight: "Safe bets",
-    upperLeft: "High reward",
-    lowerRight: "Low risk, low reward",
-    lowerLeft: "Risky & low value",
-    xAxis: "Revenue",
-    yAxis: "Risk (lower →)",
+    upperRight: "SAFE BETS",
+    upperLeft: "HIGH REWARD",
+    lowerRight: "LOW RISK, LOW REWARD",
+    lowerLeft: "RISKY & LOW VALUE",
+    xAxis: "REVENUE",
+    yAxis: "RISK (LOWER →)",
   },
   impact_vs_urgency: {
-    upperRight: "Do now",
-    upperLeft: "Plan for later",
-    lowerRight: "Quick wins",
-    lowerLeft: "Deprioritize",
-    xAxis: "Impact",
-    yAxis: "Urgency",
+    upperRight: "DO NOW",
+    upperLeft: "PLAN FOR LATER",
+    lowerRight: "QUICK WINS",
+    lowerLeft: "DEPRIORITIZE",
+    xAxis: "IMPACT",
+    yAxis: "URGENCY",
   },
 }
 
@@ -289,7 +304,7 @@ interface ScatterDataPoint {
   totalItems: number
   q1Label: string
   q2Label: string
-  isEasyWin: boolean
+  quadrant: "upperRight" | "upperLeft" | "lowerRight" | "lowerLeft"
 }
 
 function ScatterPlot({
@@ -301,6 +316,8 @@ function ScatterPlot({
   items: { id: string; name: string }[]
   template: string | null
 }) {
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null)
+  
   if (questions.length !== 2) return null
 
   const q1 = questions[0]
@@ -308,23 +325,29 @@ function ScatterPlot({
 
   // Get quadrant labels from template or use axis labels as fallback
   const quadrantConfig = template ? QUADRANT_LABELS[template] : null
-  const xLabel = quadrantConfig?.xAxis || q1.axisLabel || q1.questionText
-  const yLabel = quadrantConfig?.yAxis || q2.axisLabel || q2.questionText
-
-  // Calculate midpoints for quadrant determination
-  const q1Elos = q1.rankedItems.map(r => r.elo)
-  const q2Elos = q2.rankedItems.map(r => r.elo)
-  const q1Mid = (Math.max(...q1Elos) + Math.min(...q1Elos)) / 2
-  const q2Mid = (Math.max(...q2Elos) + Math.min(...q2Elos)) / 2
+  const hasTemplate = !!template && !!quadrantConfig
+  const xLabel = quadrantConfig?.xAxis || (q1.axisLabel?.toUpperCase()) || q1.questionText.toUpperCase()
+  const yLabel = quadrantConfig?.yAxis || (q2.axisLabel?.toUpperCase()) || q2.questionText.toUpperCase()
 
   // Build scatter data using ranks (inverted so higher rank = higher position)
   const totalItems = items.length
+  const midPoint = (totalItems + 1) / 2
+  
   const scatterData: ScatterDataPoint[] = items.map((item) => {
     const q1Item = q1.rankedItems.find((r) => r.id === item.id)
     const q2Item = q2.rankedItems.find((r) => r.id === item.id)
     // Invert ranks so rank 1 = highest position on chart
     const x = totalItems - (q1Item?.rank || totalItems) + 1
     const y = totalItems - (q2Item?.rank || totalItems) + 1
+    
+    // Determine quadrant
+    const isHighX = x > midPoint
+    const isHighY = y > midPoint
+    let quadrant: "upperRight" | "upperLeft" | "lowerRight" | "lowerLeft"
+    if (isHighX && isHighY) quadrant = "upperRight"
+    else if (!isHighX && isHighY) quadrant = "upperLeft"
+    else if (isHighX && !isHighY) quadrant = "lowerRight"
+    else quadrant = "lowerLeft"
     
     return {
       id: item.id,
@@ -336,45 +359,148 @@ function ScatterPlot({
       totalItems,
       q1Label: q1.axisLabel || q1.questionText,
       q2Label: q2.axisLabel || q2.questionText,
-      isEasyWin: x > totalItems / 2 && y > totalItems / 2,
+      quadrant,
     }
   })
 
-  // Calculate axis bounds (1 to totalItems)
+  // Calculate axis bounds
   const minVal = 0.5
   const maxVal = totalItems + 0.5
-  const midPoint = (totalItems + 1) / 2
 
-  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null)
+  // Get dot color based on quadrant and template
+  const getDotColor = (quadrant: string) => {
+    if (!hasTemplate) return CUSTOM_QUADRANT_COLORS.dot
+    return QUADRANT_COLORS[quadrant as keyof typeof QUADRANT_COLORS]?.dot || CUSTOM_QUADRANT_COLORS.dot
+  }
+  
+  const getDotBorder = (quadrant: string) => {
+    if (!hasTemplate) return CUSTOM_QUADRANT_COLORS.border
+    return QUADRANT_COLORS[quadrant as keyof typeof QUADRANT_COLORS]?.border || CUSTOM_QUADRANT_COLORS.border
+  }
+
+  // Generate custom quadrant labels for non-template pairwises
+  const getCustomQuadrantLabel = (position: "upperRight" | "upperLeft" | "lowerRight" | "lowerLeft") => {
+    const xAxisLabel = q1.axisLabel || "X"
+    const yAxisLabel = q2.axisLabel || "Y"
+    switch (position) {
+      case "upperRight": return `HIGH ${yAxisLabel}, HIGH ${xAxisLabel}`
+      case "upperLeft": return `HIGH ${yAxisLabel}, LOW ${xAxisLabel}`
+      case "lowerRight": return `LOW ${yAxisLabel}, HIGH ${xAxisLabel}`
+      case "lowerLeft": return `LOW ${yAxisLabel}, LOW ${xAxisLabel}`
+    }
+  }
 
   return (
     <div className="relative">
-      {/* Quadrant labels (only if template has them) - positioned inward from corners */}
-      {quadrantConfig && (
-        <div className="pointer-events-none absolute inset-0" style={{ margin: "20px 30px 80px 80px" }}>
-          <div className="relative h-full w-full text-xs font-medium text-muted-foreground">
-            <span className="absolute right-3 top-3">{quadrantConfig.upperRight}</span>
-            <span className="absolute left-3 top-3">{quadrantConfig.upperLeft}</span>
-            <span className="absolute bottom-3 right-3">{quadrantConfig.lowerRight}</span>
-            <span className="absolute bottom-3 left-3">{quadrantConfig.lowerLeft}</span>
-          </div>
+      {/* Quadrant labels - positioned in top-inner corner of each quadrant */}
+      <div className="pointer-events-none absolute inset-0" style={{ margin: "20px 30px 60px 60px" }}>
+        <div className="relative h-full w-full">
+          {/* Upper right label */}
+          <span 
+            className="absolute text-[11px] font-medium tracking-wide"
+            style={{ 
+              right: "14px", 
+              top: "calc(50% - 32px)", 
+              color: hasTemplate ? QUADRANT_COLORS.upperRight.label : "#737373",
+              textTransform: "uppercase",
+              letterSpacing: "0.05em",
+            }}
+          >
+            {quadrantConfig?.upperRight || getCustomQuadrantLabel("upperRight")}
+          </span>
+          {/* Upper left label */}
+          <span 
+            className="absolute text-[11px] font-medium tracking-wide"
+            style={{ 
+              left: "14px", 
+              top: "calc(50% - 32px)", 
+              color: hasTemplate ? QUADRANT_COLORS.upperLeft.label : "#737373",
+              textTransform: "uppercase",
+              letterSpacing: "0.05em",
+            }}
+          >
+            {quadrantConfig?.upperLeft || getCustomQuadrantLabel("upperLeft")}
+          </span>
+          {/* Lower right label */}
+          <span 
+            className="absolute text-[11px] font-medium tracking-wide"
+            style={{ 
+              right: "14px", 
+              bottom: "calc(50% - 32px)", 
+              color: hasTemplate ? QUADRANT_COLORS.lowerRight.label : "#737373",
+              textTransform: "uppercase",
+              letterSpacing: "0.05em",
+            }}
+          >
+            {quadrantConfig?.lowerRight || getCustomQuadrantLabel("lowerRight")}
+          </span>
+          {/* Lower left label */}
+          <span 
+            className="absolute text-[11px] font-medium tracking-wide"
+            style={{ 
+              left: "14px", 
+              bottom: "calc(50% - 32px)", 
+              color: hasTemplate ? QUADRANT_COLORS.lowerLeft.label : "#737373",
+              textTransform: "uppercase",
+              letterSpacing: "0.05em",
+            }}
+          >
+            {quadrantConfig?.lowerLeft || getCustomQuadrantLabel("lowerLeft")}
+          </span>
         </div>
-      )}
+      </div>
       
-      <div className="h-[350px] w-full">
+      <div className="h-[380px] w-full rounded-lg bg-white">
         <ResponsiveContainer width="100%" height="100%">
-          <ScatterChart margin={{ top: 20, right: 30, bottom: 80, left: 80 }}>
-            {/* Quadrant background tints */}
-            {/* Bottom-left quadrant - subtle gray */}
-            <ReferenceArea x1={minVal} x2={midPoint} y1={minVal} y2={midPoint} fill="hsl(var(--muted))" fillOpacity={0.3} />
-            {/* Bottom-right quadrant - subtle gray */}
-            <ReferenceArea x1={midPoint} x2={maxVal} y1={minVal} y2={midPoint} fill="hsl(var(--muted))" fillOpacity={0.2} />
-            {/* Top-left quadrant - subtle gray */}
-            <ReferenceArea x1={minVal} x2={midPoint} y1={midPoint} y2={maxVal} fill="hsl(var(--muted))" fillOpacity={0.2} />
-            {/* Top-right quadrant - accent highlight (the "good" quadrant) */}
-            <ReferenceArea x1={midPoint} x2={maxVal} y1={midPoint} y2={maxVal} fill="hsl(var(--primary))" fillOpacity={0.08} />
-            
-            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+          <ScatterChart margin={{ top: 24, right: 40, bottom: 60, left: 60 }}>
+            {/* Quadrant background fills - pastel colors */}
+            {hasTemplate ? (
+              <>
+                <ReferenceArea 
+                  x1={minVal} x2={midPoint} y1={minVal} y2={midPoint} 
+                  fill={QUADRANT_COLORS.lowerLeft.fill} 
+                  fillOpacity={QUADRANT_COLORS.lowerLeft.fillOpacity} 
+                />
+                <ReferenceArea 
+                  x1={midPoint} x2={maxVal} y1={minVal} y2={midPoint} 
+                  fill={QUADRANT_COLORS.lowerRight.fill} 
+                  fillOpacity={QUADRANT_COLORS.lowerRight.fillOpacity} 
+                />
+                <ReferenceArea 
+                  x1={minVal} x2={midPoint} y1={midPoint} y2={maxVal} 
+                  fill={QUADRANT_COLORS.upperLeft.fill} 
+                  fillOpacity={QUADRANT_COLORS.upperLeft.fillOpacity} 
+                />
+                <ReferenceArea 
+                  x1={midPoint} x2={maxVal} y1={midPoint} y2={maxVal} 
+                  fill={QUADRANT_COLORS.upperRight.fill} 
+                  fillOpacity={QUADRANT_COLORS.upperRight.fillOpacity} 
+                />
+              </>
+            ) : (
+              <>
+                <ReferenceArea 
+                  x1={minVal} x2={midPoint} y1={minVal} y2={midPoint} 
+                  fill={CUSTOM_QUADRANT_COLORS.fill} 
+                  fillOpacity={CUSTOM_QUADRANT_COLORS.fillOpacity} 
+                />
+                <ReferenceArea 
+                  x1={midPoint} x2={maxVal} y1={minVal} y2={midPoint} 
+                  fill={CUSTOM_QUADRANT_COLORS.fill} 
+                  fillOpacity={CUSTOM_QUADRANT_COLORS.fillOpacity} 
+                />
+                <ReferenceArea 
+                  x1={minVal} x2={midPoint} y1={midPoint} y2={maxVal} 
+                  fill={CUSTOM_QUADRANT_COLORS.fill} 
+                  fillOpacity={CUSTOM_QUADRANT_COLORS.fillOpacity} 
+                />
+                <ReferenceArea 
+                  x1={midPoint} x2={maxVal} y1={midPoint} y2={maxVal} 
+                  fill={CUSTOM_QUADRANT_COLORS.fill} 
+                  fillOpacity={CUSTOM_QUADRANT_COLORS.fillOpacity} 
+                />
+              </>
+            )}
             
             <XAxis
               type="number"
@@ -382,13 +508,14 @@ function ScatterPlot({
               domain={[minVal, maxVal]}
               tick={false}
               tickLine={false}
-              axisLine={{ stroke: "hsl(var(--border))" }}
+              axisLine={false}
               label={{
                 value: `${xLabel} →`,
                 position: "bottom",
-                offset: 40,
-                fill: "hsl(var(--foreground))",
-                fontSize: 13,
+                offset: 24,
+                fill: "#525252",
+                fontSize: 11,
+                style: { textTransform: "uppercase", letterSpacing: "0.05em" },
               }}
             />
             <YAxis
@@ -397,20 +524,21 @@ function ScatterPlot({
               domain={[minVal, maxVal]}
               tick={false}
               tickLine={false}
-              axisLine={{ stroke: "hsl(var(--border))" }}
+              axisLine={false}
               label={{
-                value: `${yLabel} →`,
+                value: `↑ ${yLabel}`,
                 angle: -90,
                 position: "left",
-                offset: 40,
-                fill: "hsl(var(--foreground))",
-                fontSize: 13,
+                offset: 24,
+                fill: "#525252",
+                fontSize: 11,
+                style: { textTransform: "uppercase", letterSpacing: "0.05em" },
               }}
             />
             
-            {/* Midpoint dividing lines - more visible */}
-            <ReferenceLine x={midPoint} stroke="hsl(var(--border))" strokeWidth={1.5} />
-            <ReferenceLine y={midPoint} stroke="hsl(var(--border))" strokeWidth={1.5} />
+            {/* Median dividers - hairline style */}
+            <ReferenceLine x={midPoint} stroke="#D4D4D4" strokeWidth={1} strokeDasharray="4 4" />
+            <ReferenceLine y={midPoint} stroke="#D4D4D4" strokeWidth={1} strokeDasharray="4 4" />
             
             <Tooltip content={<CustomTooltip />} />
             
@@ -421,10 +549,10 @@ function ScatterPlot({
               {scatterData.map((entry, index) => (
                 <Cell 
                   key={`cell-${index}`} 
-                  fill="hsl(var(--primary))"
-                  stroke={hoveredIndex === index ? "hsl(var(--primary))" : "transparent"}
-                  strokeWidth={hoveredIndex === index ? 3 : 0}
-                  r={hoveredIndex === index ? 8 : 6}
+                  fill={getDotColor(entry.quadrant)}
+                  stroke={hoveredIndex === index ? "#FFFFFF" : getDotBorder(entry.quadrant)}
+                  strokeWidth={2}
+                  r={hoveredIndex === index ? 9 : 6}
                   style={{ cursor: "pointer", transition: "all 0.15s ease" }}
                   onMouseEnter={() => setHoveredIndex(index)}
                 />
@@ -434,19 +562,20 @@ function ScatterPlot({
         </ResponsiveContainer>
       </div>
       
-      {/* Legend - items in upper-right quadrant */}
-      <div className="mt-2 flex flex-wrap justify-center gap-3 text-xs text-muted-foreground">
-        {scatterData
-          .filter(d => d.isEasyWin)
-          .map(d => (
-            <span key={d.id} className="flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-full bg-primary" />
-              {d.name}
-            </span>
-          ))}
-        {scatterData.filter(d => d.isEasyWin).length === 0 && (
-          <span>Hover over dots to see item details</span>
-        )}
+      {/* Legend - all items, color-coded by quadrant */}
+      <div className="mt-4 flex flex-wrap justify-center gap-x-4 gap-y-2 text-xs">
+        {scatterData.map(d => (
+          <span key={d.id} className="flex items-center gap-1.5">
+            <span 
+              className="h-2.5 w-2.5 rounded-full" 
+              style={{ 
+                backgroundColor: getDotColor(d.quadrant),
+                border: `1.5px solid ${getDotBorder(d.quadrant)}`,
+              }} 
+            />
+            <span className="text-gray-600">{d.name}</span>
+          </span>
+        ))}
       </div>
     </div>
   )
