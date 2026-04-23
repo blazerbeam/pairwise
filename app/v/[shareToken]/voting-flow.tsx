@@ -268,6 +268,7 @@ export function VotingFlow({
       progress={progress}
       isPending={isPending}
       canUndo={votes.length > 0}
+      voteCount={votes.length}
     />
   )
 }
@@ -345,6 +346,7 @@ function VotingInterface({
   progress,
   isPending,
   canUndo,
+  voteCount,
 }: {
   question: Question
   pair: Pair
@@ -353,19 +355,20 @@ function VotingInterface({
   progress: number
   isPending: boolean
   canUndo: boolean
+  voteCount: number
 }) {
   const [expandedA, setExpandedA] = useState(false)
   const [expandedB, setExpandedB] = useState(false)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [isAnimating, setIsAnimating] = useState(false)
 
-  // Reset expanded state and selection when pair changes
+  // Reset expanded state and selection when pair changes OR when voteCount decreases (undo)
   useEffect(() => {
     setExpandedA(false)
     setExpandedB(false)
     setSelectedId(null)
     setIsAnimating(false)
-  }, [pair.itemA.id, pair.itemB.id])
+  }, [pair.itemA.id, pair.itemB.id, voteCount])
 
   // Handle vote with selection animation
   const handleVoteWithAnimation = (itemId: string) => {
@@ -377,20 +380,16 @@ function VotingInterface({
     // Wait for animation, then submit vote
     setTimeout(() => {
       onVote(itemId)
-      // Reset will happen via useEffect when pair changes
+      // Reset will happen via useEffect when pair changes or voteCount changes
     }, 250)
   }
 
-  // Handle undo - wait for animation to complete if in progress
+  // Handle undo - reset animation state immediately, then call onUndo
   const handleUndoClick = () => {
-    if (isAnimating) {
-      // Wait for animation to complete
-      setTimeout(() => {
-        onUndo()
-      }, 300)
-    } else {
-      onUndo()
-    }
+    // Immediately reset animation state so the UI is ready
+    setSelectedId(null)
+    setIsAnimating(false)
+    onUndo()
   }
 
   return (
@@ -404,21 +403,9 @@ function VotingInterface({
               style={{ width: `${progress}%` }}
             />
           </div>
-          <div className="flex w-full max-w-md items-center justify-between">
-            <span className="text-xs font-medium text-muted-foreground">
-              {progress}% complete
-            </span>
-            {/* Undo button */}
-            {canUndo && (
-              <button
-                onClick={handleUndoClick}
-                disabled={isPending}
-                className="text-xs text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
-              >
-                ← Undo last vote
-              </button>
-            )}
-          </div>
+          <span className="text-xs font-medium text-muted-foreground">
+            {progress}% complete
+          </span>
         </div>
       </div>
 
@@ -462,6 +449,18 @@ function VotingInterface({
             />
           </div>
         </div>
+
+        {/* Undo button - below cards, centered */}
+        {canUndo && (
+          <button
+            onClick={handleUndoClick}
+            disabled={isPending}
+            className="mt-8 inline-flex items-center gap-1.5 rounded-full bg-muted px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted/80 disabled:opacity-50"
+          >
+            <span>←</span>
+            <span>Undo last vote</span>
+          </button>
+        )}
       </div>
     </div>
   )
