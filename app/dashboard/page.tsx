@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import Link from "next/link"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
 export default async function DashboardPage() {
   const supabase = await createClient()
@@ -14,7 +14,7 @@ export default async function DashboardPage() {
   // Get user's pairwises
   const { data: pairwises } = await supabase
     .from("pairwises")
-    .select("id, name, description, status, share_token, created_at")
+    .select("id, name, status, share_token, created_at")
     .eq("owner_id", user.id)
     .order("created_at", { ascending: false })
 
@@ -65,40 +65,42 @@ export default async function DashboardPage() {
         </Card>
       ) : (
         <div className="grid gap-4">
-          {pairwises.map((pairwise) => (
-            <Link key={pairwise.id} href={`/dashboard/${pairwise.id}`}>
-              <Card className="transition-shadow hover:shadow-md cursor-pointer">
+          {pairwises.map((pairwise) => {
+            const voterCount = voterCounts.get(pairwise.id) || 0
+            const votingUrl = `/v/${pairwise.share_token}`
+            const resultsUrl = `/v/${pairwise.share_token}/results`
+
+            return (
+              <Card key={pairwise.id} className="overflow-hidden">
                 <CardHeader>
                   <div className="flex items-start justify-between">
-                    <div>
-                      <CardTitle className="text-lg">{pairwise.name}</CardTitle>
-                      {pairwise.description && (
-                        <CardDescription className="mt-1 line-clamp-2">
-                          {pairwise.description}
-                        </CardDescription>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <span
-                        className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
-                          pairwise.status === "active"
-                            ? "bg-green-50 text-green-700"
-                            : pairwise.status === "draft"
-                            ? "bg-amber-50 text-amber-700"
-                            : "bg-gray-100 text-gray-700"
-                        }`}
-                      >
-                        {pairwise.status}
-                      </span>
-                      <span className="text-sm text-muted-foreground">
-                        {voterCounts.get(pairwise.id) || 0} voters
-                      </span>
-                    </div>
+                    <CardTitle className="text-lg">{pairwise.name}</CardTitle>
+                    <span className="text-sm text-muted-foreground">
+                      {voterCount} voter{voterCount !== 1 ? "s" : ""}
+                    </span>
                   </div>
                 </CardHeader>
+                <CardContent>
+                  <div className="flex items-center gap-4">
+                    <Link
+                      href={votingUrl}
+                      target="_blank"
+                      className="text-sm text-primary hover:underline"
+                    >
+                      Voting link →
+                    </Link>
+                    <Link
+                      href={resultsUrl}
+                      target="_blank"
+                      className="text-sm text-primary hover:underline"
+                    >
+                      Results →
+                    </Link>
+                  </div>
+                </CardContent>
               </Card>
-            </Link>
-          ))}
+            )
+          })}
         </div>
       )}
     </div>
