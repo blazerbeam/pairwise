@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback, useTransition, useEffect } from "react"
+import { useState, useCallback, useTransition, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { createVoter, submitVote, markVoterCompleted, clearVoterSession, undoLastVote } from "./actions"
 import { cn } from "@/lib/utils"
@@ -361,6 +361,9 @@ function VotingInterface({
   const [expandedB, setExpandedB] = useState(false)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [isAnimating, setIsAnimating] = useState(false)
+  
+  // Track the animation timeout so we can cancel it on undo
+  const animationTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   // Reset expanded state and selection when pair changes OR when voteCount decreases (undo)
   useEffect(() => {
@@ -369,6 +372,15 @@ function VotingInterface({
     setSelectedId(null)
     setIsAnimating(false)
   }, [pair.itemA.id, pair.itemB.id, voteCount])
+  
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (animationTimeoutRef.current) {
+        clearTimeout(animationTimeoutRef.current)
+      }
+    }
+  }, [])
 
   // Handle vote with selection animation
   const handleVoteWithAnimation = (itemId: string) => {
@@ -377,18 +389,32 @@ function VotingInterface({
     setSelectedId(itemId)
     setIsAnimating(true)
     
+    // Clear any existing timeout
+    if (animationTimeoutRef.current) {
+      clearTimeout(animationTimeoutRef.current)
+    }
+    
     // Wait for animation, then submit vote
-    setTimeout(() => {
+    animationTimeoutRef.current = setTimeout(() => {
+      animationTimeoutRef.current = null
       onVote(itemId)
       // Reset will happen via useEffect when pair changes or voteCount changes
     }, 250)
   }
 
-  // Handle undo - reset animation state immediately, then call onUndo
+  // Handle undo - cancel any pending animation timeout and reset state
   const handleUndoClick = () => {
-    // Immediately reset animation state so the UI is ready
+    // Cancel any pending animation timeout FIRST
+    if (animationTimeoutRef.current) {
+      clearTimeout(animationTimeoutRef.current)
+      animationTimeoutRef.current = null
+    }
+    
+    // Reset animation state
     setSelectedId(null)
     setIsAnimating(false)
+    
+    // Then trigger undo
     onUndo()
   }
 
