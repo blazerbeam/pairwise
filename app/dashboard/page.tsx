@@ -68,7 +68,7 @@ export default async function DashboardPage() {
           {pairwises.map((pairwise) => {
             const voterCount = voterCounts.get(pairwise.id) || 0
             const votingUrl = `/v/${pairwise.share_token}`
-            const resultsUrl = `/v/${pairwise.share_token}/results`
+            const resultsUrl = `/dashboard/${pairwise.id}/results`
 
             return (
               <Card key={pairwise.id} className="overflow-hidden">
@@ -91,7 +91,6 @@ export default async function DashboardPage() {
                     </Link>
                     <Link
                       href={resultsUrl}
-                      target="_blank"
                       className="text-sm text-primary hover:underline"
                     >
                       Results →
