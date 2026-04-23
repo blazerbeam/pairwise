@@ -15,7 +15,7 @@ export function PainPoints() {
   ]
 
   return (
-    <section className="px-6 py-20 md:px-12">
+    <section className="px-6 py-14 md:px-12">
       <div className="mx-auto max-w-4xl">
         <h2 className="text-center text-2xl font-semibold text-foreground md:text-3xl">
           Sound familiar?
@@ -24,7 +24,8 @@ export function PainPoints() {
           {pains.map((pain, index) => (
             <div
               key={index}
-              className="rounded-xl bg-stone-50 p-6 shadow-sm"
+              className="rounded-xl bg-card p-7"
+              style={{ boxShadow: "0 1px 3px rgba(20, 15, 10, 0.04), 0 4px 12px rgba(20, 15, 10, 0.04)" }}
             >
               {/* Orange accent bar */}
               <div className="mb-4 h-1 w-10 rounded-full bg-primary" />
