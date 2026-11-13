@@ -1,7 +1,10 @@
 # pairwise
 
-Group prioritization by comparing two things at a time. Live at
-[pairwise.one](https://pairwise.one). Anyone can sign up.
+Group prioritization by comparing two things at a time.
+
+**Status: paused.** The hosted version at pairwise.one is offline because its database
+is paused. The code here is complete, and you can run it against your own Supabase
+project (see below).
 
 Ranking ten things on a whiteboard gets you a list nobody trusts. pairwise never asks
 anyone to rank ten things. It asks them to pick between two, then two more. After
